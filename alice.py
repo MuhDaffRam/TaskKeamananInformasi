@@ -46,7 +46,6 @@ class AliceNode:
         msg_to_kdc = f"{self.id_a}||{self.id_b}||{n1}"
         
         try:
-            # Hubungi KDC
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.connect((self.kdc_ip, self.kdc_port))
             s.sendall(msg_to_kdc.encode('ascii'))
@@ -55,27 +54,23 @@ class AliceNode:
             s.close()
             print(f"[*] Menerima respons dari KDC: {response}")
             
-            # Parsing respons KDC
             parts = response.split("|")
             self.session_key = parts[0].split(":")[1]
             ticket_for_bob = parts[1] + "|" + parts[2]
             print(f"[+] Session Key berhasil didapatkan: {self.session_key}")
             
-            # Buka listener lokal untuk bersiap menerima Nonce (Langkah 4) dari Bob
             listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind(('0.0.0.0', self.my_port))
             listener.listen(1)
             listener.settimeout(5.0)
             
-            # [Langkah 3] Mengirim Ticket ke Bob
             print("[Langkah 3] Mengirim Ticket ke Bob...")
             s_bob = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s_bob.connect((self.bob_ip, self.bob_port))
             s_bob.sendall(f"TICKET||{ticket_for_bob}".encode('ascii'))
             s_bob.close()
             
-            # [Langkah 4] Menunggu Tantangan (Nonce N2) dari Bob
             print("[Langkah 4] Menunggu E_Ks(N2) dari Bob...")
             conn_bob, _ = listener.accept()
             n2_encrypted = conn_bob.recv(1024).decode('ascii')
@@ -85,8 +80,7 @@ class AliceNode:
                 c_hex = n2_encrypted.split("||")[1]
                 n2_decrypted_str = manual_aes_decrypt(c_hex, self.session_key)
                 print(f"[+] Decrypted N2 (Plaintext): {n2_decrypted_str}")
-                
-                # [Langkah 5] Mengirim modifikasi respons ke Bob secara aman berbasis string
+
                 n2_response_str = n2_decrypted_str.strip() + "-ack"
                 n2_resp_hex = manual_aes_encrypt(n2_response_str, self.session_key)
                 
